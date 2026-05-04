@@ -748,6 +748,64 @@ func TestParseToolCallsToleratesDSMLSpaceSeparatorTypo(t *testing.T) {
 	}
 }
 
+func TestParseToolCallsToleratesDSMLZeroWidthLowLineSeparators(t *testing.T) {
+	sep := "\u200d\u2581"
+	text := strings.Join([]string{
+		"<\uff5cDSML" + sep + "tool_calls>",
+		"<\uff5cDSML" + sep + "invoke name=\"web_search\">",
+		"<\uff5cDSML" + sep + "parameter name=\"count\"><![CDATA[8]]></\uff5cDSML" + sep + "parameter>",
+		"<\uff5cDSML" + sep + "parameter name=\"query\"><![CDATA[Chiang Mai cheapest international schools under 5000 USD 2025 2026 Panyaden Lanna ABS Ambassadorial bilingual quality]]></\uff5c",
+		"DSML" + sep + "parameter>",
+		"</\uff5cDSML" + sep + "invoke>",
+		"<\uff5cDSML" + sep + "invoke name=\"web_search\">",
+		"<\uff5cDSML" + sep + "parameter name=\"count\"><![CDATA[8]]></\uff5cDSML" + sep + "parameter>",
+		"<\uff5cDSML" + sep + "parameter name=\"query\"><![CDATA[Spain public school quality ranking PISA 2025 foreign students integration English support]]></\uff5cDSML" + sep + "parameter>",
+		"</\uff5cDSML" + sep + "invoke>",
+		"<\uff5cDSML" + sep + "invoke name=\"web_search\">",
+		"<\uff5cDSML" + sep + "parameter name=\"count\"><![CDATA[8]]></\uff5cDSML" + sep + "parameter>",
+		"<\uff5cDSML" + sep + "parameter name=\"query\"><![CDATA[Portugal public school digital nomad children enrollment quality free education expat 2025 2026]]></\uff5cDSML" + sep + "parameter>",
+		"</\uff5cDSML" + sep + "invoke>",
+		"</\uff5cDSML" + sep + "tool_calls>",
+	}, "\n")
+
+	calls := ParseToolCalls(text, []string{"web_search"})
+	if len(calls) != 3 {
+		t.Fatalf("expected three calls from zero-width low-line DSML tags, got %#v", calls)
+	}
+	if calls[0].Name != "web_search" {
+		t.Fatalf("expected web_search call, got %#v", calls[0])
+	}
+	if got, _ := calls[0].Input["query"].(string); !strings.Contains(got, "Chiang Mai cheapest") {
+		t.Fatalf("expected query to parse, got %q", got)
+	}
+	if got := calls[0].Input["count"]; got != float64(8) {
+		t.Fatalf("expected count to parse as number, got %#v", got)
+	}
+}
+
+func TestParseToolCallsDoesNotAcceptDSMLZeroWidthLowLineLookalikeTagName(t *testing.T) {
+	sep := "\u200d\u2581"
+	text := strings.Join([]string{
+		"<\uff5cDSML" + sep + "tool_calls_extra>",
+		"<\uff5cDSML" + sep + "invoke name=\"web_search\">",
+		"<\uff5cDSML" + sep + "parameter name=\"query\">x</\uff5cDSML" + sep + "parameter>",
+		"</\uff5cDSML" + sep + "invoke>",
+		"</\uff5cDSML" + sep + "tool_calls_extra>",
+	}, "\n")
+	calls := ParseToolCalls(text, []string{"web_search"})
+	if len(calls) != 0 {
+		t.Fatalf("expected no calls from zero-width lookalike tag, got %#v", calls)
+	}
+}
+
+func TestParseToolCallsDoesNotAcceptTokenArtifactWithoutDSMLPrefix(t *testing.T) {
+	text := "<\u200d\u2581tool_calls><invoke name=\"web_search\"><parameter name=\"query\">x</parameter></invoke></\u200d\u2581tool_calls>"
+	calls := ParseToolCalls(text, []string{"web_search"})
+	if len(calls) != 0 {
+		t.Fatalf("expected no calls from token artifact without DSML prefix, got %#v", calls)
+	}
+}
+
 func TestParseToolCallsDoesNotAcceptDSMLSpaceLookalikeTagName(t *testing.T) {
 	text := strings.Join([]string{
 		"<|DSML tool_calls_extra>",

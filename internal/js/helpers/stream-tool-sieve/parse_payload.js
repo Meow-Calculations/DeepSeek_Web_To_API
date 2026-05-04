@@ -3,6 +3,7 @@
 const CDATA_PATTERN = /^<!\[CDATA\[([\s\S]*?)]]>$/i;
 const XML_ATTR_PATTERN = /\b([a-z0-9_:-]+)\s*=\s*("([^"]*)"|'([^']*)')/gi;
 const TOOL_MARKUP_NAMES = ['tool_calls', 'invoke', 'parameter'];
+const TOOL_MARKUP_TOKEN_ARTIFACTS = ['\u200b', '\u200c', '\u200d', '\u2060', '\ufeff', '\u2581'];
 
 const {
   toStringSafe,
@@ -570,6 +571,7 @@ function isPartialToolMarkupTagPrefix(text) {
   if (raw[i] === '/') {
     i += 1;
   }
+  let dsmlLike = false;
   while (i <= raw.length) {
     if (i === raw.length) {
       return true;
@@ -580,10 +582,11 @@ function isPartialToolMarkupTagPrefix(text) {
     if ('dsml'.startsWith(lower.slice(i))) {
       return true;
     }
-    const next = consumeToolMarkupNamePrefixOnce(raw, lower, i);
+    const next = consumeToolMarkupNamePrefixOnce(raw, lower, i, dsmlLike);
     if (!next.ok) {
       return false;
     }
+    dsmlLike = true;
     i = next.next;
   }
   return false;
@@ -593,7 +596,7 @@ function consumeToolMarkupNamePrefix(raw, lower, idx) {
   let next = idx;
   let dsmlLike = false;
   while (true) {
-    const consumed = consumeToolMarkupNamePrefixOnce(raw, lower, next);
+    const consumed = consumeToolMarkupNamePrefixOnce(raw, lower, next, dsmlLike);
     if (!consumed.ok) {
       return { next, dsmlLike };
     }
@@ -602,7 +605,7 @@ function consumeToolMarkupNamePrefix(raw, lower, idx) {
   }
 }
 
-function consumeToolMarkupNamePrefixOnce(raw, lower, idx) {
+function consumeToolMarkupNamePrefixOnce(raw, lower, idx, allowTokenArtifacts) {
   if (idx < raw.length && isToolMarkupPipe(raw[idx])) {
     return { next: idx + 1, ok: true };
   }
@@ -611,6 +614,13 @@ function consumeToolMarkupNamePrefixOnce(raw, lower, idx) {
   }
   if (lower.startsWith('dsml', idx)) {
     return { next: idx + 'dsml'.length, ok: true };
+  }
+  if (allowTokenArtifacts) {
+    for (const artifact of TOOL_MARKUP_TOKEN_ARTIFACTS) {
+      if (raw.startsWith(artifact, idx)) {
+        return { next: idx + artifact.length, ok: true };
+      }
+    }
   }
   return { next: idx, ok: false };
 }

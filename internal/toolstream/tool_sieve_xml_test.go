@@ -885,6 +885,45 @@ func TestProcessToolSieveFullwidthDSMLPrefixVariantDoesNotLeak(t *testing.T) {
 	}
 }
 
+func TestProcessToolSieveZeroWidthLowLineDSMLVariantDoesNotLeak(t *testing.T) {
+	sep := "\u200d\u2581"
+	var state State
+	chunks := []string{
+		"<\uff5cDSML" + sep + "tool_calls>\n",
+		"<\uff5cDSML" + sep + "invoke name=\"web_search\">\n",
+		"<\uff5cDSML" + sep + "parameter name=\"count\"><![CDATA[8]]></\uff5cDSML" + sep + "parameter>\n",
+		"<\uff5cDSML" + sep + "parameter name=\"query\"><![CDATA[Chiang Mai cheapest international schools under 5000 USD 2025 2026 Panyaden Lanna ABS Ambassadorial bilingual quality]]></\uff5c\n",
+		"DSML" + sep + "parameter>\n",
+		"</\uff5cDSML" + sep + "invoke>\n",
+		"<\uff5cDSML" + sep + "invoke name=\"web_search\">\n",
+		"<\uff5cDSML" + sep + "parameter name=\"count\"><![CDATA[8]]></\uff5cDSML" + sep + "parameter>\n",
+		"<\uff5cDSML" + sep + "parameter name=\"query\"><![CDATA[Spain public school quality ranking PISA 2025 foreign students integration English support]]></\uff5cDSML" + sep + "parameter>\n",
+		"</\uff5cDSML" + sep + "invoke>\n",
+		"</\uff5cDSML" + sep + "tool_calls>",
+	}
+	var events []Event
+	for _, c := range chunks {
+		events = append(events, ProcessChunk(&state, c, []string{"web_search"})...)
+	}
+	events = append(events, Flush(&state, []string{"web_search"})...)
+
+	var textContent strings.Builder
+	var toolCalls int
+	for _, evt := range events {
+		textContent.WriteString(evt.Content)
+		toolCalls += len(evt.ToolCalls)
+	}
+
+	if toolCalls != 2 {
+		t.Fatalf("expected two tool calls from zero-width low-line DSML variant, got %d events=%#v", toolCalls, events)
+	}
+	if strings.Contains(strings.ToLower(textContent.String()), "dsml") ||
+		strings.Contains(textContent.String(), "web_search") ||
+		strings.Contains(textContent.String(), "tool_calls") {
+		t.Fatalf("zero-width low-line DSML variant leaked to text: %q", textContent.String())
+	}
+}
+
 // Test <DSML|tool_calls> with <|DSML|invoke> (DSML prefix without leading pipe on wrapper).
 func TestProcessToolSieveDSMLPrefixVariantDoesNotLeak(t *testing.T) {
 	var state State

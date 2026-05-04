@@ -14,6 +14,15 @@ var toolMarkupNames = []string{
 	"工具调用", "调用", "参数",
 }
 
+var toolMarkupTokenArtifacts = []string{
+	"\u200b", // zero-width space
+	"\u200c", // zero-width non-joiner
+	"\u200d", // zero-width joiner
+	"\u2060", // word joiner
+	"\ufeff", // byte order mark / zero-width no-break space
+	"\u2581", // lower one eighth block, often used as a tokenized-space marker
+}
+
 // canonicalToolMarkupName maps any recognized name (including Chinese / legacy
 // variants) to the canonical English form used by the downstream XML parser.
 func canonicalToolMarkupName(name string) string {
@@ -216,6 +225,7 @@ func IsPartialToolMarkupTagPrefix(text string) bool {
 	if text[i] == '/' {
 		i++
 	}
+	dsmlLike := false
 	for i <= len(text) {
 		if i == len(text) {
 			return true
@@ -226,10 +236,11 @@ func IsPartialToolMarkupTagPrefix(text string) bool {
 		if strings.HasPrefix("dsml", lower[i:]) {
 			return true
 		}
-		next, ok := consumeToolMarkupNamePrefixOnce(lower, text, i)
+		next, ok := consumeToolMarkupNamePrefixOnce(lower, text, i, dsmlLike)
 		if !ok {
 			return false
 		}
+		dsmlLike = true
 		i = next
 	}
 	return false
@@ -238,7 +249,7 @@ func IsPartialToolMarkupTagPrefix(text string) bool {
 func consumeToolMarkupNamePrefix(lower, text string, idx int) (int, bool) {
 	dsmlLike := false
 	for {
-		next, ok := consumeToolMarkupNamePrefixOnce(lower, text, idx)
+		next, ok := consumeToolMarkupNamePrefixOnce(lower, text, idx, dsmlLike)
 		if !ok {
 			return idx, dsmlLike
 		}
@@ -247,15 +258,43 @@ func consumeToolMarkupNamePrefix(lower, text string, idx int) (int, bool) {
 	}
 }
 
-func consumeToolMarkupNamePrefixOnce(lower, text string, idx int) (int, bool) {
+func consumeToolMarkupNamePrefixOnce(lower, text string, idx int, allowTokenArtifacts bool) (int, bool) {
 	if next, ok := consumeToolMarkupPipe(text, idx); ok {
 		return next, true
 	}
-	if idx < len(text) && (text[idx] == ' ' || text[idx] == '\t' || text[idx] == '\r' || text[idx] == '\n') {
-		return idx + 1, true
+	if next, ok := consumeToolMarkupSpaceSeparator(text, idx); ok {
+		return next, true
 	}
 	if strings.HasPrefix(lower[idx:], "dsml") {
 		return idx + len("dsml"), true
+	}
+	if allowTokenArtifacts {
+		if next, ok := consumeToolMarkupTokenArtifact(text, idx); ok {
+			return next, true
+		}
+	}
+	return idx, false
+}
+
+func consumeToolMarkupSpaceSeparator(text string, idx int) (int, bool) {
+	if idx >= len(text) {
+		return idx, false
+	}
+	switch text[idx] {
+	case ' ', '\t', '\r', '\n':
+		return idx + 1, true
+	}
+	return idx, false
+}
+
+func consumeToolMarkupTokenArtifact(text string, idx int) (int, bool) {
+	if idx >= len(text) {
+		return idx, false
+	}
+	for _, artifact := range toolMarkupTokenArtifacts {
+		if strings.HasPrefix(text[idx:], artifact) {
+			return idx + len(artifact), true
+		}
 	}
 	return idx, false
 }

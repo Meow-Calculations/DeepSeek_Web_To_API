@@ -57,6 +57,37 @@ test('parseToolCalls parses DSML shell as XML-compatible tool call', () => {
   assert.deepEqual(calls[0].input, { path: 'README.MD' });
 });
 
+test('parseToolCalls tolerates tokenized DSML prefix separators', () => {
+  const prefix = '\uff5cDSML\u200d\u2581';
+  const payload = [
+    `<${prefix}tool_calls>`,
+    `<${prefix}invoke name="web_search">`,
+    `<${prefix}parameter name="count"><![CDATA[8]]></${prefix}parameter>`,
+    `<${prefix}parameter name="query"><![CDATA[Chiang Mai cheapest international schools under 5000 USD 2025 2026 Panyaden Lanna ABS Ambassadorial bilingual quality]]></${prefix}parameter>`,
+    `</${prefix}invoke>`,
+    `<${prefix}invoke name="web_search">`,
+    `<${prefix}parameter name="count"><![CDATA[8]]></${prefix}parameter>`,
+    `<${prefix}parameter name="query"><![CDATA[Spain public school quality ranking PISA 2025 foreign students integration English support]]></${prefix}parameter>`,
+    `</${prefix}invoke>`,
+    `<${prefix}invoke name="web_search">`,
+    `<${prefix}parameter name="count"><![CDATA[8]]></${prefix}parameter>`,
+    `<${prefix}parameter name="query"><![CDATA[Portugal public school digital nomad children enrollment quality free education expat 2025 2026]]></${prefix}parameter>`,
+    `</${prefix}invoke>`,
+    `</${prefix}tool_calls>`,
+  ].join('\n');
+  const calls = parseToolCalls(payload, ['web_search']);
+  assert.equal(calls.length, 3);
+  assert.equal(calls[0].name, 'web_search');
+  assert.equal(calls[0].input.count, 8);
+  assert.equal(calls[2].input.query, 'Portugal public school digital nomad children enrollment quality free education expat 2025 2026');
+});
+
+test('parseToolCalls ignores token artifacts without DSML prefix', () => {
+  const payload = '<\u200d\u2581tool_calls><invoke name="web_search"><parameter name="query">x</parameter></invoke></\u200d\u2581tool_calls>';
+  const calls = parseToolCalls(payload, ['web_search']);
+  assert.equal(calls.length, 0);
+});
+
 test('parseToolCalls tolerates DSML trailing pipe tag terminator', () => {
   const payload = [
     '<|DSML|tool_calls| ',
@@ -537,6 +568,29 @@ test('sieve emits tool_calls when fullwidth DSML prefix variant spans multiple c
   assert.equal(finalCalls.length, 2);
   assert.equal(finalCalls[0].name, 'Bash');
   assert.equal(finalCalls[1].name, 'Bash');
+});
+
+test('sieve emits tool_calls for tokenized DSML prefix separators', () => {
+  const prefix = '\uff5cDSML\u200d\u2581';
+  const events = runSieve(
+    [
+      '<\uff5cDSML\u200d',
+      '\u2581tool',
+      '_calls>\n',
+      `<${prefix}invoke name="web_search">\n`,
+      `<${prefix}parameter name="count"><![CDATA[8]]></${prefix}parameter>\n`,
+      `<${prefix}parameter name="query"><![CDATA[Chiang Mai cheapest international schools under 5000 USD 2025 2026 Panyaden Lanna ABS Ambassadorial bilingual quality]]></${prefix}parameter>\n`,
+      `</${prefix}invoke>\n`,
+      `</${prefix}tool_calls>`,
+    ],
+    ['web_search'],
+  );
+  const leakedText = collectText(events);
+  const finalCalls = events.filter((evt) => evt.type === 'tool_calls').flatMap((evt) => evt.calls || []);
+  assert.equal(leakedText, '');
+  assert.equal(finalCalls.length, 1);
+  assert.equal(finalCalls[0].name, 'web_search');
+  assert.equal(finalCalls[0].input.count, 8);
 });
 
 test('sieve keeps long XML tool calls buffered until the closing tag arrives', () => {
