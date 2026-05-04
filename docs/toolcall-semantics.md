@@ -116,7 +116,7 @@ Render-->>Client: protocol-native tool event
 </|DSML|tool_calls>
 ```
 
-兼容层也接受旧式 XML、常见 DSML wrapper typo、参数 JSON 字面量和可恢复的 CDATA 漏闭合。裸 `<invoke>` 不作为稳定支持格式。
+兼容层也接受旧式 XML、常见 DSML wrapper typo、参数 JSON 字面量和可恢复的 CDATA 漏闭合。DSML 前缀允许 ASCII/全宽竖线、空白、折叠前缀，以及模型分词残留的零宽格式符和 `▁` 分隔符。裸 `<invoke>` 不作为稳定支持格式。
 
 ### 早发和最终修复
 

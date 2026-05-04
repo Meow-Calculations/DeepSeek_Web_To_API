@@ -1,6 +1,7 @@
 package toolstream
 
 import (
+	"DeepSeek_Web_To_API/internal/toolcall"
 	"strings"
 	"testing"
 )
@@ -882,6 +883,46 @@ func TestProcessToolSieveFullwidthDSMLPrefixVariantDoesNotLeak(t *testing.T) {
 	}
 	if textContent.Len() != 0 {
 		t.Fatalf("expected fullwidth DSML prefix variant not to leak text, got %q", textContent.String())
+	}
+}
+
+// Test <\uff5cDSML\u200d\u2581tool_calls> with DSML invoke/parameter tags
+// should buffer and parse tokenized DSML prefix artifacts without leaking tags.
+func TestProcessToolSieveTokenizedDSMLPrefixSeparatorsDoNotLeak(t *testing.T) {
+	var state State
+	prefix := "\uff5cDSML\u200d\u2581"
+	prefixHead := "\uff5cDSML\u200d"
+	chunks := []string{
+		"<" + prefixHead,
+		"\u2581tool",
+		"_calls>\n",
+		"<" + prefix + "invoke name=\"web_search\">\n",
+		"<" + prefix + "parameter name=\"count\"><![CDATA[8]]></" + prefix + "parameter>\n",
+		"<" + prefix + "parameter name=\"query\"><![CDATA[Chiang Mai cheapest international schools under 5000 USD 2025 2026 Panyaden Lanna ABS Ambassadorial bilingual quality]]></" + prefix + "parameter>\n",
+		"</" + prefix + "invoke>\n",
+		"</" + prefix + "tool_calls>",
+	}
+	var events []Event
+	for _, c := range chunks {
+		events = append(events, ProcessChunk(&state, c, []string{"web_search"})...)
+	}
+	events = append(events, Flush(&state, []string{"web_search"})...)
+
+	var textContent strings.Builder
+	var calls []toolcall.ParsedToolCall
+	for _, evt := range events {
+		textContent.WriteString(evt.Content)
+		calls = append(calls, evt.ToolCalls...)
+	}
+
+	if len(calls) != 1 {
+		t.Fatalf("expected one tool call from tokenized DSML prefix separators, got %d events=%#v", len(calls), events)
+	}
+	if calls[0].Name != "web_search" || calls[0].Input["count"] != float64(8) {
+		t.Fatalf("unexpected tokenized DSML call: %#v", calls[0])
+	}
+	if textContent.Len() != 0 {
+		t.Fatalf("expected tokenized DSML prefix separators not to leak text, got %q", textContent.String())
 	}
 }
 

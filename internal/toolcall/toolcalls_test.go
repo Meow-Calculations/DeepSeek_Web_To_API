@@ -71,6 +71,38 @@ func TestParseToolCallsSupportsSinglePipeShorthand(t *testing.T) {
 	}
 }
 
+// TestParseToolCallsSupportsTokenizedDSMLPrefixSeparators covers DeepSeek
+// emissions where the DSML prefix is split from the canonical tag name by
+// tokenizer artifacts such as U+200D and U+2581.
+func TestParseToolCallsSupportsTokenizedDSMLPrefixSeparators(t *testing.T) {
+	prefix := "\uff5cDSML\u200d\u2581"
+	text := "<" + prefix + "tool_calls>\n" +
+		"<" + prefix + "invoke name=\"web_search\">\n" +
+		"<" + prefix + "parameter name=\"count\"><![CDATA[8]]></" + prefix + "parameter>\n" +
+		"<" + prefix + "parameter name=\"query\"><![CDATA[Chiang Mai cheapest international schools under 5000 USD 2025 2026 Panyaden Lanna ABS Ambassadorial bilingual quality]]></" + prefix + "parameter>\n" +
+		"</" + prefix + "invoke>\n" +
+		"<" + prefix + "invoke name=\"web_search\">\n" +
+		"<" + prefix + "parameter name=\"count\"><![CDATA[8]]></" + prefix + "parameter>\n" +
+		"<" + prefix + "parameter name=\"query\"><![CDATA[Spain public school quality ranking PISA 2025 foreign students integration English support]]></" + prefix + "parameter>\n" +
+		"</" + prefix + "invoke>\n" +
+		"<" + prefix + "invoke name=\"web_search\">\n" +
+		"<" + prefix + "parameter name=\"count\"><![CDATA[8]]></" + prefix + "parameter>\n" +
+		"<" + prefix + "parameter name=\"query\"><![CDATA[Portugal public school digital nomad children enrollment quality free education expat 2025 2026]]></" + prefix + "parameter>\n" +
+		"</" + prefix + "invoke>\n" +
+		"</" + prefix + "tool_calls>"
+
+	calls := ParseToolCalls(text, []string{"web_search"})
+	if len(calls) != 3 {
+		t.Fatalf("expected 3 calls from tokenized DSML prefix separators, got %#v", calls)
+	}
+	if calls[0].Name != "web_search" || calls[0].Input["count"] != float64(8) {
+		t.Fatalf("unexpected first tokenized DSML call: %#v", calls[0])
+	}
+	if calls[2].Input["query"] != "Portugal public school digital nomad children enrollment quality free education expat 2025 2026" {
+		t.Fatalf("unexpected third query: %#v", calls[2].Input["query"])
+	}
+}
+
 // TestParseToolCallsRecoversFromMalformedCDATAClose covers a real DeepSeek
 // regression where every CDATA section closes with "]]<TAG" instead of the
 // canonical "]]><TAG". Before the pre-normalize sanitize pass, the rewriter
