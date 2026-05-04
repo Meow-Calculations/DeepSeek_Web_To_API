@@ -100,6 +100,7 @@ func (c *Config) NormalizeCredentials() {
 	}
 
 	for i := range c.Accounts {
+		c.Accounts[i] = NormalizeAccountIdentity(c.Accounts[i])
 		c.Accounts[i].Name = strings.TrimSpace(c.Accounts[i].Name)
 		c.Accounts[i].Remark = strings.TrimSpace(c.Accounts[i].Remark)
 	}

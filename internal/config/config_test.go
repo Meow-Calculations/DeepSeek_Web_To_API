@@ -19,6 +19,35 @@ func TestAccountIdentifierRequiresEmailOrMobile(t *testing.T) {
 	}
 }
 
+func TestAccountIdentifierTreatsLegacyMobileEmailAsEmail(t *testing.T) {
+	acc := Account{Mobile: " user@example.com ", Password: "p"}
+	if got := acc.Identifier(); got != "user@example.com" {
+		t.Fatalf("expected email identifier from legacy mobile field, got %q", got)
+	}
+	normalized := NormalizeAccountIdentity(acc)
+	if normalized.Email != "user@example.com" || normalized.Mobile != "" {
+		t.Fatalf("expected email to be moved out of mobile, got %#v", normalized)
+	}
+}
+
+func TestLoadStoreNormalizesLegacyMobileEmailAccounts(t *testing.T) {
+	t.Setenv("DEEPSEEK_WEB_TO_API_CONFIG_JSON", `{
+		"accounts":[{"mobile":"legacy@example.com","password":"p","token":"runtime-token"}]
+	}`)
+
+	store := LoadStore()
+	accounts := store.Accounts()
+	if len(accounts) != 1 {
+		t.Fatalf("expected legacy mobile email account to survive loading, got %d", len(accounts))
+	}
+	if accounts[0].Email != "legacy@example.com" || accounts[0].Mobile != "" {
+		t.Fatalf("expected legacy mobile email normalized to email, got %#v", accounts[0])
+	}
+	if accounts[0].Token != "" {
+		t.Fatalf("expected config token to be cleared after loading, got %q", accounts[0].Token)
+	}
+}
+
 func TestLoadStoreClearsTokensFromConfigInput(t *testing.T) {
 	t.Setenv("DEEPSEEK_WEB_TO_API_CONFIG_JSON", `{
 		"keys":["k1"],

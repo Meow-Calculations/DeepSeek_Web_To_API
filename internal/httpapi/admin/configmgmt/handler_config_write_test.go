@@ -71,6 +71,44 @@ func TestBatchImportPlainAccountText(t *testing.T) {
 	}
 }
 
+func TestBatchImportLegacyJSONTreatsEmailInMobileAsEmail(t *testing.T) {
+	h := newAdminTestHandler(t, `{"keys":["k1"],"accounts":[]}`)
+	body := map[string]any{
+		"accounts": []any{
+			map[string]any{
+				"mobile":   "legacy@example.com",
+				"password": "p1",
+				"token":    "runtime-token",
+			},
+		},
+	}
+	b, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/admin/import", bytes.NewReader(b))
+	rec := httptest.NewRecorder()
+
+	h.batchImport(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if got := int(resp["imported_accounts"].(float64)); got != 1 {
+		t.Fatalf("expected 1 imported account, got %d body=%v", got, resp)
+	}
+	acc, ok := h.Store.FindAccount("legacy@example.com")
+	if !ok {
+		t.Fatal("expected legacy JSON email account to be findable by email")
+	}
+	if acc.Email != "legacy@example.com" || acc.Mobile != "" {
+		t.Fatalf("expected legacy mobile email normalized to email, got %#v", acc)
+	}
+	if acc.Token != "" {
+		t.Fatalf("expected imported runtime token to be ignored, got %q", acc.Token)
+	}
+}
+
 func TestBatchImportPlainAccountTextRejectsInvalidLine(t *testing.T) {
 	h := newAdminTestHandler(t, `{"keys":["k1"],"accounts":[]}`)
 	body := map[string]any{"accounts_text": "missing-separator"}

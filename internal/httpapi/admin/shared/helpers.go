@@ -126,16 +126,14 @@ func toStringSlice(v any) ([]string, bool) {
 }
 
 func toAccount(m map[string]any) config.Account {
-	email := fieldString(m, "email")
-	mobile := config.NormalizeMobileForStorage(fieldString(m, "mobile"))
-	return config.Account{
+	return normalizeAccountForStorage(config.Account{
 		Name:     fieldString(m, "name"),
 		Remark:   fieldString(m, "remark"),
-		Email:    email,
-		Mobile:   mobile,
+		Email:    fieldString(m, "email"),
+		Mobile:   fieldString(m, "mobile"),
 		Password: fieldString(m, "password"),
 		ProxyID:  fieldString(m, "proxy_id"),
-	}
+	})
 }
 
 func toAPIKeys(v any) ([]config.APIKey, bool) {
@@ -286,10 +284,9 @@ func accountMatchesIdentifier(acc config.Account, identifier string) bool {
 }
 
 func normalizeAccountForStorage(acc config.Account) config.Account {
+	acc = config.NormalizeAccountIdentity(acc)
 	acc.Name = strings.TrimSpace(acc.Name)
 	acc.Remark = strings.TrimSpace(acc.Remark)
-	acc.Email = strings.TrimSpace(acc.Email)
-	acc.Mobile = config.NormalizeMobileForStorage(acc.Mobile)
 	acc.ProxyID = strings.TrimSpace(acc.ProxyID)
 	return acc
 }

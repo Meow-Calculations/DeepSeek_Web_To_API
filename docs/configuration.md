@@ -5,6 +5,7 @@
 - [config.example.json](file://config.example.json)
 - [.env.example](file://.env.example)
 - [internal/config/config.go](file://internal/config/config.go)
+- [internal/config/account.go](file://internal/config/account.go)
 - [internal/config/account_sqlite.go](file://internal/config/account_sqlite.go)
 - [internal/config/dotenv.go](file://internal/config/dotenv.go)
 - [internal/config/store_load.go](file://internal/config/store_load.go)
@@ -132,7 +133,7 @@ STORE --> SAVE
 - 反代部署时将 `server.bind_addr` 设置为 `127.0.0.1`，由 Caddy/Nginx 暴露公网端口；Docker Compose 会通过环境变量覆盖为 `0.0.0.0`。
 - 容器部署时保留容器内 `server.port=5001`，只通过 Compose 的宿主机端口映射调整外部端口。
 - 账号不再需要写入 JSON；在管理台“批量导入”中粘贴 `账号:密码` 文本即可写入 `accounts.sqlite`。
-- 若旧 JSON 中仍有 `accounts`，账号 SQLite 为空时会自动迁移，随后保存配置时会剥离 `accounts` 字段。
+- 若旧 JSON 中仍有 `accounts`，账号 SQLite 为空时会自动迁移，随后保存配置时会剥离 `accounts` 字段；兼容旧导入格式中把邮箱误写到 `mobile` 字段的账号，加载和导入时会自动归一到 `email`。
 - 账号 token 不写回结构化配置文件；运行态 token 保存在账号 SQLite 中。
 - 代理只支持 `socks5` 与 `socks5h`，账号的 `proxy_id` 必须引用已存在代理。
 
@@ -156,7 +157,7 @@ STORE --> SAVE
 - 启动失败并提示 `admin credential is missing`：配置 `admin.key` 或 `admin.password_hash`。
 - 启动失败并提示 `admin.jwt_secret is required`：配置足够随机的 `admin.jwt_secret`。
 - Docker 容器内无法保存配置：确认挂载了 `./data:/app/data`，并设置 `DEEPSEEK_WEB_TO_API_CONFIG_PATH=/app/data/config.json`。
-- 批量导入账号失败：确认每行是 `账号:密码`，邮箱账号包含 `@`，手机号账号不要写 JSON。
+- 批量导入账号失败：优先使用一行一个 `账号:密码`；邮箱账号包含 `@`，手机号账号会归一化为带国家码格式。旧 JSON 里的 `mobile:"user@example.com"` 会被兼容成邮箱账号。
 - 代理配置报错：检查 `type` 是否为 `socks5` 或 `socks5h`，端口是否在 `1-65535`。
 
 **章节来源**

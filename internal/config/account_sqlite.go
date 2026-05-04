@@ -222,10 +222,9 @@ func normalizeAndDedupeAccountConfig(accounts []Account) []Account {
 }
 
 func normalizeAccountConfig(acc Account) Account {
+	acc = NormalizeAccountIdentity(acc)
 	acc.Name = strings.TrimSpace(acc.Name)
 	acc.Remark = strings.TrimSpace(acc.Remark)
-	acc.Email = strings.TrimSpace(acc.Email)
-	acc.Mobile = NormalizeMobileForStorage(acc.Mobile)
 	acc.Password = strings.TrimSpace(acc.Password)
 	acc.Token = strings.TrimSpace(acc.Token)
 	acc.ProxyID = strings.TrimSpace(acc.ProxyID)

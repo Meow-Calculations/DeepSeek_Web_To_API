@@ -202,6 +202,26 @@ func TestToAccountNumericValues(t *testing.T) {
 	}
 }
 
+func TestToAccountTreatsLegacyMobileEmailAsEmail(t *testing.T) {
+	acc := toAccount(map[string]any{
+		"mobile":   " legacy@example.com ",
+		"password": "secret",
+		"token":    "runtime-token",
+	})
+	if acc.Email != "legacy@example.com" {
+		t.Fatalf("expected email from legacy mobile field, got %q", acc.Email)
+	}
+	if acc.Mobile != "" {
+		t.Fatalf("expected mobile to be empty for email account, got %q", acc.Mobile)
+	}
+	if acc.Password != "secret" {
+		t.Fatalf("unexpected password: %q", acc.Password)
+	}
+	if acc.Token != "" {
+		t.Fatalf("expected token to be ignored, got %q", acc.Token)
+	}
+}
+
 // ─── fieldString edge cases ──────────────────────────────────────────
 
 func TestFieldStringNonString(t *testing.T) {
