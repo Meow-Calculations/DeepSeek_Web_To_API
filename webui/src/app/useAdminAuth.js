@@ -13,10 +13,13 @@ export function useAdminAuth({ isProduction, location, t }) {
         setTimeout(() => setMessage(null), 5000)
     }, [])
 
-    // Do not persist admin JWTs in Web Storage (localStorage/sessionStorage),
-    // because they are cleartext and accessible to any script running in the
-    // page context. Keep auth in memory only; this function only cleans up
-    // legacy keys from older versions.
+    // The admin JWT is persisted in localStorage rather than sessionStorage so
+    // that hard refreshes (Ctrl+Shift+R / Firefox refreshes / restored tabs)
+    // do not lose the token and dispatch unauthenticated requests, which
+    // surface as {"detail":"authentication required"} in the WebUI. See
+    // cnb.cool/Neko_Kernel/DeepSeek_Web_To_API#9. We still also clear the
+    // legacy sessionStorage entries on logout / expiry so older browser
+    // sessions get migrated cleanly.
     const clearStoredCredentials = () => {
         localStorage.removeItem('deepseek-web-to-api_token')
         localStorage.removeItem('deepseek-web-to-api_token_expires')
@@ -51,10 +54,21 @@ export function useAdminAuth({ isProduction, location, t }) {
         }
 
         const checkAuth = async () => {
-            // Security: avoid reading/writing bearer tokens from/to Web Storage.
-            // Admin auth is in-memory only; require explicit login after refresh.
-            const storedToken = null
-            const expiresAt = 0
+            // Prefer localStorage (current persistence). Fall back to
+            // sessionStorage so sessions established before this fix migrate
+            // automatically on the first successful refresh.
+            let storedToken = localStorage.getItem('deepseek-web-to-api_token')
+            let expiresAt = parseInt(localStorage.getItem('deepseek-web-to-api_token_expires') || '0')
+            if (!storedToken) {
+                storedToken = sessionStorage.getItem('deepseek-web-to-api_token')
+                expiresAt = parseInt(sessionStorage.getItem('deepseek-web-to-api_token_expires') || '0')
+                if (storedToken && expiresAt > Date.now()) {
+                    localStorage.setItem('deepseek-web-to-api_token', storedToken)
+                    localStorage.setItem('deepseek-web-to-api_token_expires', String(expiresAt))
+                    sessionStorage.removeItem('deepseek-web-to-api_token')
+                    sessionStorage.removeItem('deepseek-web-to-api_token_expires')
+                }
+            }
 
             if (storedToken && expiresAt > Date.now()) {
                 try {
