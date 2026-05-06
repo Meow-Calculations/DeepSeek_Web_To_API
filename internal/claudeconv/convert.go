@@ -1,6 +1,7 @@
 package claudeconv
 
 import (
+	"math"
 	"strings"
 
 	"DeepSeek_Web_To_API/internal/config"
@@ -18,10 +19,12 @@ func ConvertClaudeToDeepSeek(claudeReq map[string]any, aliasProvider config.Mode
 		dsModel = "deepseek-v4-flash"
 	}
 
-	// Cap the capacity hint so CodeQL go/allocation-size-overflow does
-	// not flag len()+1 as a potential overflow. Real conversations are
-	// nowhere near this; the cap is purely a static-analysis tell.
-	capHint := len(messages) + 1
+	// Compute capacity hint without risking integer overflow on len(messages)+1.
+	msgLen := len(messages)
+	capHint := 1 << 20
+	if msgLen < math.MaxInt {
+		capHint = msgLen + 1
+	}
 	if capHint < 0 || capHint > 1<<20 {
 		capHint = 1 << 20
 	}

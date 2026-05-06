@@ -23,10 +23,14 @@ func prependInstructionMessage(messages []any, instructions any) []any {
 	if sys == "" {
 		return messages
 	}
-	capHint := len(messages) + 1
-	if capHint < 0 || capHint > 1<<20 {
-		capHint = 1 << 20
+
+	const maxCapHint = 1 << 20
+	msgLen := len(messages)
+	capHint := maxCapHint
+	if msgLen < maxCapHint {
+		capHint = msgLen + 1
 	}
+
 	out := make([]any, 0, capHint)
 	out = append(out, map[string]any{"role": "system", "content": sys})
 	out = append(out, messages...)
