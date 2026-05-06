@@ -23,7 +23,12 @@ func ConvertClaudeToDeepSeek(claudeReq map[string]any, aliasProvider config.Mode
 	msgLen := len(messages)
 	capHint := maxMessageCapHint
 	if msgLen < maxMessageCapHint {
-		capHint = msgLen + 1 // safe: msgLen is strictly bounded above
+		if msgLen == maxMessageCapHint-1 {
+			capHint = maxMessageCapHint
+		} else {
+			capHint = msgLen
+			capHint++
+		}
 	}
 	convertedMessages := make([]any, 0, capHint)
 	if system := claudeSystemText(claudeReq["system"]); system != "" {
