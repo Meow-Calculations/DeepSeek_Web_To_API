@@ -103,7 +103,7 @@ func TestTokenUsageStatsWindowConsistency(t *testing.T) {
 		store.mu.Unlock()
 		t.Fatal("summary not found")
 	}
-	twoHoursAgo := time.Now().Add(-2*time.Hour).UnixMilli()
+	twoHoursAgo := time.Now().Add(-2 * time.Hour).UnixMilli()
 	summary.CreatedAt = twoHoursAgo
 	summary.CompletedAt = twoHoursAgo
 	summary.UpdatedAt = time.Now().UnixMilli()
