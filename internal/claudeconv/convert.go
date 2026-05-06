@@ -1,7 +1,6 @@
 package claudeconv
 
 import (
-	"math"
 	"strings"
 
 	"DeepSeek_Web_To_API/internal/config"
@@ -19,14 +18,12 @@ func ConvertClaudeToDeepSeek(claudeReq map[string]any, aliasProvider config.Mode
 		dsModel = "deepseek-v4-flash"
 	}
 
-	// Compute capacity hint without risking integer overflow on len(messages)+1.
+	// Compute a bounded capacity hint without overflow risk.
+	const maxMessageCapHint = 1 << 20
 	msgLen := len(messages)
-	capHint := 1 << 20
-	if msgLen < math.MaxInt {
-		capHint = msgLen + 1
-	}
-	if capHint < 0 || capHint > 1<<20 {
-		capHint = 1 << 20
+	capHint := maxMessageCapHint
+	if msgLen < maxMessageCapHint {
+		capHint = msgLen + 1 // safe: msgLen is strictly bounded above
 	}
 	convertedMessages := make([]any, 0, capHint)
 	if system := claudeSystemText(claudeReq["system"]); system != "" {
