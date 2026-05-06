@@ -73,7 +73,15 @@ func (s *Store) TokenUsageStats(window time.Duration) (TokenUsageStats, error) {
 			item = cached
 		}
 		model := normalizedMetricModel(item.Model)
-		if item.CreatedAt >= windowStart {
+		// Single canonical timestamp for window membership so the request
+		// counter and token aggregates always agree. See sqlite_metrics.go
+		// for the longer rationale.
+		refTime := item.CompletedAt
+		if refTime <= 0 {
+			refTime = item.CreatedAt
+		}
+		inWindow := refTime >= windowStart
+		if inWindow {
 			stats.WindowRequests++
 		}
 
@@ -84,7 +92,7 @@ func (s *Store) TokenUsageStats(window time.Duration) (TokenUsageStats, error) {
 		usage.Requests = 1
 		stats.Total.add(usage)
 		addModelTotals(stats.TotalByModel, model, usage)
-		if item.UpdatedAt >= windowStart || item.CompletedAt >= windowStart {
+		if inWindow {
 			stats.Window.add(usage)
 			addModelTotals(stats.WindowByModel, model, usage)
 		}

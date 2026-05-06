@@ -1,5 +1,13 @@
 # 更新日志
 
+## 2026-05-06 (1.0.5)
+
+v1.0.5 是定点 bug 修复版本：修复 admin metrics overview 中 24h / 7d / 15d token 统计窗口的不一致 skew。VERSION 从 `1.0.4` 升到 `1.0.5`。
+
+### 子段 v1.0.5 修复
+
+- **24h/7d/15d token 统计窗口一致性修复**：`/admin/metrics/overview` 的 `token_windows` 节点之前会出现 `requests` 与 `tokens` 比例错乱，且 24h/7d/15d 窗口内 token 总量比对应的请求数偏高。根因在 [`internal/chathistory/sqlite_metrics.go`](internal/chathistory/sqlite_metrics.go) 与 [`internal/chathistory/metrics.go`](internal/chathistory/metrics.go) 用了两套不同的时间字段判断窗口归属：`WindowRequests` 计数走 `created_at`，`Window` token 聚合走 `updated_at OR completed_at`。任何被后续元数据修改（status / finish_reason 重写、close 事件等）刷新过 `updated_at` 的旧行 → tokens 漏入近 24h/7d/15d 窗口、但 request 数不动 → 窗口数字对不上。本版本把两个判断都钉到单一权威时间戳：`completed_at`（账单时刻），`completed_at <= 0` 时回退到 `created_at`，使窗口归属物理上一致。新增回归测试 `TestTokenUsageStatsWindowConsistency`：构造一行 2 小时前完成、刚被刷过 `updated_at` 的行，断言它不进 1 分钟窗口（该测试在修复前必然失败）。
+
 ## 2026-05-06 (1.0.4)
 
 v1.0.4 是 v1.0.3 milestone 之后的累积小迭代,包含上游 CJackHwang/ds2api v4.2.x → v4.4.x 选择性跟进、CNB PR #15 前端轮询频率优化、以及 GitHub Issue #9 的运维侧文档化。VERSION 从 `1.0.3` 升到 `1.0.4`,正式打 v1.0.4 tag(也是 GitHub Release 的发布载体);v1.0.3 milestone 下的所有累积工作(CDATA 管道变体兼容 / 5-store SQLite / 三层缓存粘性 / 自动拉黑 / 思考超时 7200s 全套 / 安全审计闭环 / MIT 重新许可)继续保留为 1.0.3 子段历史,在本次 release 中也包含。

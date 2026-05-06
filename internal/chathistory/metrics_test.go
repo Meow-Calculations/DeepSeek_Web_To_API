@@ -72,6 +72,59 @@ func TestTokenUsageStatsAggregatesTotalsAndWindow(t *testing.T) {
 	}
 }
 
+// TestTokenUsageStatsWindowConsistency guards against the 24h/7d/15d skew
+// that surfaced in the admin metrics overview: an old row whose UpdatedAt
+// was rewritten by a later metadata edit must not leak tokens into the
+// window aggregate without also being counted in WindowRequests. The fix
+// pins both checks to a single canonical timestamp (CompletedAt, falling
+// back to CreatedAt) — this test fails on the pre-fix behaviour.
+func TestTokenUsageStatsWindowConsistency(t *testing.T) {
+	store := New(filepath.Join(t.TempDir(), "chat_history.json"))
+
+	entry, err := store.Start(StartParams{Model: "deepseek-v4-flash", UserInput: "old"})
+	if err != nil {
+		t.Fatalf("start entry failed: %v", err)
+	}
+	if _, err := store.Update(entry.ID, UpdateParams{
+		Status:    "success",
+		Usage:     map[string]any{"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150},
+		Completed: true,
+	}); err != nil {
+		t.Fatalf("update entry failed: %v", err)
+	}
+
+	// Simulate a row that was created and completed two hours ago, but had
+	// its metadata rewritten just now (UpdatedAt = now). Under the old
+	// "UpdatedAt OR CompletedAt" check it would have leaked into a 1-minute
+	// window without contributing a request. With the fix it must not.
+	store.mu.Lock()
+	summary, idx, ok := store.findSummaryLocked(entry.ID)
+	if !ok {
+		store.mu.Unlock()
+		t.Fatal("summary not found")
+	}
+	twoHoursAgo := time.Now().Add(-2*time.Hour).UnixMilli()
+	summary.CreatedAt = twoHoursAgo
+	summary.CompletedAt = twoHoursAgo
+	summary.UpdatedAt = time.Now().UnixMilli()
+	store.state.Items[idx] = summary
+	store.mu.Unlock()
+
+	stats, err := store.TokenUsageStats(time.Minute)
+	if err != nil {
+		t.Fatalf("token usage stats failed: %v", err)
+	}
+	if stats.WindowRequests != 0 {
+		t.Fatalf("expected zero window requests for old completed row, got %d", stats.WindowRequests)
+	}
+	if stats.Window.TotalTokens != 0 || stats.Window.InputTokens != 0 || stats.Window.OutputTokens != 0 {
+		t.Fatalf("expected empty window aggregates, got %#v", stats.Window)
+	}
+	if stats.Total.TotalTokens != 150 {
+		t.Fatalf("expected total tokens to still aggregate, got %#v", stats.Total)
+	}
+}
+
 func TestTokenUsageStatsDefaultsPromptInputToCacheMiss(t *testing.T) {
 	store := New(filepath.Join(t.TempDir(), "chat_history.json"))
 	entry, err := store.Start(StartParams{UserInput: "hello"})

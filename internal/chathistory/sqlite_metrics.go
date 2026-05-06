@@ -52,7 +52,22 @@ func (s *sqliteStore) TokenUsageStats(window time.Duration) (TokenUsageStats, er
 		if err := rows.Scan(&model, &createdAt, &updatedAt, &completedAt, &usageJSON); err != nil {
 			return TokenUsageStats{}, fmt.Errorf("scan chat history sqlite token stats: %w", err)
 		}
-		if createdAt >= windowStart {
+		// Use a single canonical timestamp for window membership so the
+		// request counter and token aggregates always agree. completedAt is
+		// the moment tokens were finalized/billed; for in-flight rows that
+		// have not finished yet, fall back to createdAt so they still count
+		// in the most recent windows. Earlier code split these two checks
+		// across createdAt vs updatedAt|completedAt, which made e.g. an old
+		// row whose metadata was rewritten today contribute tokens to the
+		// 24h window without contributing a request — producing the 24h /
+		// 7d / 15d skew seen in the admin metrics overview.
+		_ = updatedAt
+		refTime := completedAt
+		if refTime <= 0 {
+			refTime = createdAt
+		}
+		inWindow := refTime >= windowStart
+		if inWindow {
 			stats.WindowRequests++
 		}
 		usage := tokenUsageFromMap(decodeUsageJSON(usageJSON))
@@ -63,7 +78,7 @@ func (s *sqliteStore) TokenUsageStats(window time.Duration) (TokenUsageStats, er
 		metricModel := normalizedMetricModel(model)
 		stats.Total.add(usage)
 		addModelTotals(stats.TotalByModel, metricModel, usage)
-		if updatedAt >= windowStart || completedAt >= windowStart {
+		if inWindow {
 			stats.Window.add(usage)
 			addModelTotals(stats.WindowByModel, metricModel, usage)
 		}

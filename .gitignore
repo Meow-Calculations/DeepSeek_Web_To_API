@@ -2,6 +2,10 @@
 config.json
 .env
 
+# Local build artifacts (not committed; release builds use scripts/build-release-archives.sh)
+/build/
+/nul
+
 # IDE
 .vscode/
 .idea/
