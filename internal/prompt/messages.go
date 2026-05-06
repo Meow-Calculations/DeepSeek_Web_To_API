@@ -90,9 +90,11 @@ func prependOutputIntegrityGuard(messages []map[string]any) []map[string]any {
 	if hasOutputIntegrityGuard(messages[0]) {
 		return messages
 	}
-	capHint := len(messages) + 1
-	if capHint < 0 || capHint > 1<<20 {
-		capHint = 1 << 20
+	const maxCapHint = 1 << 20
+	n := len(messages)
+	capHint := maxCapHint
+	if n < maxCapHint {
+		capHint = n + 1
 	}
 	out := make([]map[string]any, 0, capHint)
 	out = append(out, map[string]any{
