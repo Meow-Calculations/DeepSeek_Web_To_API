@@ -91,9 +91,10 @@ func prependOutputIntegrityGuard(messages []map[string]any) []map[string]any {
 		return messages
 	}
 	const maxCapHint = 1 << 20
+	const maxInt = int(^uint(0) >> 1)
 	n := len(messages)
 	capHint := maxCapHint
-	if n < maxCapHint {
+	if n < maxCapHint && n < maxInt {
 		capHint = n + 1
 	}
 	out := make([]map[string]any, 0, capHint)
