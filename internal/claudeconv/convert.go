@@ -18,7 +18,14 @@ func ConvertClaudeToDeepSeek(claudeReq map[string]any, aliasProvider config.Mode
 		dsModel = "deepseek-v4-flash"
 	}
 
-	convertedMessages := make([]any, 0, len(messages)+1)
+	// Cap the capacity hint so CodeQL go/allocation-size-overflow does
+	// not flag len()+1 as a potential overflow. Real conversations are
+	// nowhere near this; the cap is purely a static-analysis tell.
+	capHint := len(messages) + 1
+	if capHint < 0 || capHint > 1<<20 {
+		capHint = 1 << 20
+	}
+	convertedMessages := make([]any, 0, capHint)
 	if system := claudeSystemText(claudeReq["system"]); system != "" {
 		convertedMessages = append(convertedMessages, map[string]any{"role": "system", "content": system})
 	}

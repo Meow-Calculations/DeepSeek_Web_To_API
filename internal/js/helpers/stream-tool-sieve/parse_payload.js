@@ -1048,12 +1048,16 @@ function extractRawTagValue(inner) {
 
 function unescapeHtml(safe) {
   if (!safe) return '';
-  return safe.replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
+  // Decode `&amp;` LAST so the input `&amp;lt;` stays as `&lt;` rather
+  // than being double-unescaped to `<` (CodeQL js/double-escaping). All
+  // other entities resolve atomically; the order between them does not
+  // matter because none of them produce another entity's escape sequence.
+  return safe.replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#039;/g, "'")
-    .replace(/&#x27;/g, "'");
+    .replace(/&#x27;/g, "'")
+    .replace(/&amp;/g, '&');
 }
 
 function extractStandaloneCDATA(inner) {

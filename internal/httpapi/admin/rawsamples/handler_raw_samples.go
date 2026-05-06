@@ -61,6 +61,16 @@ func (h *Handler) captureRawSample(w http.ResponseWriter, r *http.Request) {
 
 	if rec.Code >= http.StatusBadRequest {
 		copyHeader(w.Header(), rec.Header())
+		// Defence-in-depth XSS mitigation. The captured response is
+		// upstream-LLM-generated content reflected back to the admin
+		// browser. The global securityHeaders middleware already sets
+		// X-Content-Type-Options: nosniff, but pinning it here keeps
+		// CodeQL go/reflected-xss flow analysis quiet AND survives
+		// any future copyHeader regression that might overwrite it.
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		if w.Header().Get("Content-Type") == "" {
+			w.Header().Set("Content-Type", "application/octet-stream")
+		}
 		w.WriteHeader(rec.Code)
 		_, _ = io.Copy(w, bytes.NewReader(rec.Body.Bytes()))
 		return
@@ -90,6 +100,12 @@ func (h *Handler) captureRawSample(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-DeepSeek-Web-To-API-Sample-Dir", saved.Dir)
 	w.Header().Set("X-DeepSeek-Web-To-API-Sample-Meta", saved.MetaPath)
 	w.Header().Set("X-DeepSeek-Web-To-API-Sample-Upstream", saved.UpstreamPath)
+	// Defence-in-depth XSS mitigation — see the rec.Code >= 400 branch
+	// for rationale. CodeQL go/reflected-xss compliance.
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if w.Header().Get("Content-Type") == "" {
+		w.Header().Set("Content-Type", "application/octet-stream")
+	}
 	w.WriteHeader(rec.Code)
 	_, _ = io.Copy(w, bytes.NewReader(rec.Body.Bytes()))
 }

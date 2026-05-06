@@ -90,7 +90,11 @@ func prependOutputIntegrityGuard(messages []map[string]any) []map[string]any {
 	if hasOutputIntegrityGuard(messages[0]) {
 		return messages
 	}
-	out := make([]map[string]any, 0, len(messages)+1)
+	capHint := len(messages) + 1
+	if capHint < 0 || capHint > 1<<20 {
+		capHint = 1 << 20
+	}
+	out := make([]map[string]any, 0, capHint)
 	out = append(out, map[string]any{
 		"role":    "system",
 		"content": outputIntegrityGuardPrompt,

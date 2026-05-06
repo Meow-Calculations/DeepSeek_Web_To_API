@@ -691,7 +691,10 @@ func (s *Store) saveLocked() error {
 		if !isSafeDetailID(id) {
 			return fmt.Errorf("invalid chat history detail id: %s", id)
 		}
-		path := filepath.Join(s.detailDir, id+".json")
+		path, ok := joinSafeDetailPath(s.detailDir, id)
+		if !ok {
+			return fmt.Errorf("invalid chat history detail path for id: %s", id)
+		}
 		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("remove stale chat history detail: %w", err)
 		}
@@ -707,7 +710,10 @@ func (s *Store) saveLocked() error {
 		if !isSafeDetailID(id) {
 			return fmt.Errorf("invalid chat history detail id: %s", id)
 		}
-		path := filepath.Join(s.detailDir, id+".json")
+		path, ok := joinSafeDetailPath(s.detailDir, id)
+		if !ok {
+			return fmt.Errorf("invalid chat history detail path for id: %s", id)
+		}
 		payload, err := json.MarshalIndent(detailEnvelope{
 			Version: FileVersion,
 			Item:    item,
@@ -791,8 +797,16 @@ func buildPreview(item Entry) string {
 	return candidate
 }
 
-func readDetailFile(path string) (Entry, error) {
-	// #nosec G304 -- callers build this path from a validated history ID under detailDir.
+// readDetailFile reads + decodes a single detail file. The path argument
+// MUST be the result of joinSafeDetailPath (or equivalent containment-
+// validated join) — readDetailFile re-asserts containment via the
+// detailDir parameter so CodeQL's go/path-injection flow analysis can
+// trace the safety of the os.ReadFile call from this site.
+func readDetailFile(detailDir, id string) (Entry, error) {
+	path, ok := joinSafeDetailPath(detailDir, id)
+	if !ok {
+		return Entry{}, fmt.Errorf("invalid chat history detail path for id: %s", id)
+	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return Entry{}, fmt.Errorf("read chat history detail: %w", err)
@@ -815,10 +829,7 @@ func (s *Store) readDetailLocked(id string) (Entry, error) {
 	if _, _, ok := s.findSummaryLocked(id); !ok {
 		return Entry{}, errors.New("chat history entry not found")
 	}
-	if !isSafeDetailID(id) {
-		return Entry{}, errors.New("chat history entry id is invalid")
-	}
-	return readDetailFile(filepath.Join(s.detailDir, id+".json"))
+	return readDetailFile(s.detailDir, id)
 }
 
 func (s *Store) loadDetailForUpdateLocked(id string) (Entry, error) {
@@ -1013,6 +1024,25 @@ func ListETag(revision int64, offset, limit int) string {
 
 func DetailETag(id string, revision int64) string {
 	return fmt.Sprintf(`W/"chat-history-detail-%s-%d"`, strings.TrimSpace(id), revision)
+}
+
+// joinSafeDetailPath builds the on-disk path for a detail file ID and
+// verifies the result lives strictly under detailDir. The id MUST already
+// have passed isSafeDetailID; this function adds a second-line defence so
+// CodeQL's go/path-injection flow analysis sees an explicit containment
+// check at the os.Remove / os.ReadFile call site even though the id is
+// already constrained to [A-Za-z0-9_-]{1,128}.
+func joinSafeDetailPath(detailDir, id string) (string, bool) {
+	if !isSafeDetailID(id) {
+		return "", false
+	}
+	cleanDir := filepath.Clean(detailDir)
+	candidate := filepath.Clean(filepath.Join(cleanDir, id+".json"))
+	parent := filepath.Dir(candidate)
+	if parent != cleanDir {
+		return "", false
+	}
+	return candidate, true
 }
 
 func isSafeDetailID(id string) bool {

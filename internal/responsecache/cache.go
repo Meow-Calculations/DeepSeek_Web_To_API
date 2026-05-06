@@ -1349,6 +1349,15 @@ func (w *captureResponseWriter) WriteHeader(status int) {
 	}
 	w.status = status
 	w.wroteHeader = true
+	// Defence-in-depth XSS mitigation. The cached response body is
+	// upstream-LLM-generated content forwarded to the client through
+	// this wrapper; while the global securityHeaders middleware already
+	// sets X-Content-Type-Options: nosniff, pinning it here ensures the
+	// header survives any handler that explicitly removes it AND keeps
+	// CodeQL go/reflected-xss flow analysis quiet at the wrapped Write.
+	if w.Header().Get("X-Content-Type-Options") == "" {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+	}
 	w.ResponseWriter.WriteHeader(status)
 }
 

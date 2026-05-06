@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -90,7 +89,7 @@ func (s *sqliteStore) legacyEntries(raw []byte) ([]Entry, int, error) {
 		if strings.TrimSpace(summary.ID) == "" {
 			continue
 		}
-		entry, err := readDetailFile(filepath.Join(s.legacyDetailDir, summary.ID+".json"))
+		entry, err := readDetailFile(s.legacyDetailDir, summary.ID)
 		if err != nil {
 			entry = entryFromSummary(summary)
 		}
