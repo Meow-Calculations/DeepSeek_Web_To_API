@@ -63,8 +63,9 @@ export function useAdminAuth({ isProduction, location, t }) {
                 storedToken = sessionStorage.getItem('deepseek-web-to-api_token')
                 expiresAt = parseInt(sessionStorage.getItem('deepseek-web-to-api_token_expires') || '0')
                 if (storedToken && expiresAt > Date.now()) {
-                    localStorage.setItem('deepseek-web-to-api_token', storedToken)
-                    localStorage.setItem('deepseek-web-to-api_token_expires', String(expiresAt))
+                    // Security hardening: do not re-persist sensitive tokens in
+                    // localStorage. Keep token in memory for this session and
+                    // clear legacy sessionStorage entries.
                     sessionStorage.removeItem('deepseek-web-to-api_token')
                     sessionStorage.removeItem('deepseek-web-to-api_token_expires')
                 }
