@@ -26,9 +26,9 @@ func prependInstructionMessage(messages []any, instructions any) []any {
 
 	const maxCapHint = 1 << 20
 	msgLen := len(messages)
-	capHint := maxCapHint
-	if msgLen < maxCapHint {
-		capHint = msgLen + 1
+	capHint := 1
+	if msgLen >= maxCapHint {
+		capHint = maxCapHint
 	}
 
 	out := make([]any, 0, capHint)
